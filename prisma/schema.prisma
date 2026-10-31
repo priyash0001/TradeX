@@ -1,0 +1,271 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  mobile      String   @unique
+  password    String
+  role        String   @default("BUYER")
+  companyName String?
+  location    String?  @default("Nashik")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  supplierProfile SupplierProfile?
+  rfqsCreated     RFQ[]             @relation("BuyerRFQs")
+  quotationsSent  Quotation[]       @relation("SupplierQuotations")
+  ratingsGiven    Rating[]          @relation("BuyerRatings")
+  ratingsReceived Rating[]          @relation("SupplierRatings")
+  savedSuppliers  SavedSupplier[]
+  notifications   Notification[]
+  rfqMessages     RfqMessage[]
+}
+
+model SupplierProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description      String   @default("")
+  address          String   @default("")
+  city             String   @default("Nashik")
+  state            String   @default("Maharashtra")
+  pincode          String   @default("")
+  gstNumber        String?
+  established      Int?
+  employeeCount    String?
+  machinery        String?
+  certifications   String?
+  latitude         Float?   @default(19.9975)
+  longitude        Float?   @default(73.7898)
+  isVerified       Boolean  @default(false)
+  averageRating    Float    @default(0.0)
+  totalRatings     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  products  Product[]
+  rfqs      RFQ[]
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  icon     String    @default("package")
+  products Product[]
+}
+
+model Product {
+  id               String          @id @default(uuid())
+  supplierId       String
+  supplier         SupplierProfile @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  categoryId       String?
+  category         Category?       @relation(fields: [categoryId], references: [id])
+  name             String
+  description      String          @default("")
+  minOrderQuantity Int             @default(1)
+  unit             String          @default("units")
+  indicativePrice  Float?
+  isAvailable      Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model RFQ {
+  id          String          @id @default(uuid())
+  buyerId     String
+  buyer       User            @relation("BuyerRFQs", fields: [buyerId], references: [id], onDelete: Cascade)
+  supplierId  String
+  supplier    SupplierProfile @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  productName String
+  description String          @default("")
+  quantity    Int
+  unit        String          @default("units")
+  deadline    DateTime?
+  status      String          @default("PENDING")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  quotations    Quotation[]
+  notifications Notification[]
+  messages      RfqMessage[]
+
+  @@index([buyerId])
+  @@index([supplierId])
+}
+
+model Quotation {
+  id          String   @id @default(uuid())
+  rfqId       String
+  rfq         RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  supplierId  String
+  supplier    User     @relation("SupplierQuotations", fields: [supplierId], references: [id], onDelete: Cascade)
+  pricePerUnit Float
+  totalPrice  Float
+  deliveryDays Int
+  notes       String   @default("")
+  status      String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  poNumber    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([rfqId])
+  @@index([supplierId])
+}
+
+model RfqMessage {
+  id        String   @id @default(uuid())
+  rfqId     String
+  rfq       RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([rfqId])
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  buyerId    String
+  buyer      User     @relation("BuyerRatings", fields: [buyerId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   User     @relation("SupplierRatings", fields: [supplierId], references: [id], onDelete: Cascade)
+  score      Int
+  comment    String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@unique([buyerId, supplierId])
+}
+
+model SavedSupplier {
+  id         String   @id @default(uuid())
+  buyerId    String
+  buyer      User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  supplierId String
+  createdAt  DateTime @default(now())
+
+  @@unique([buyerId, supplierId])
+  @@index([buyerId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rfqId     String?
+  rfq       RFQ?     @relation(fields: [rfqId], references: [id], onDelete: SetNull)
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+model MidcBusiness {
+  id                 String   @id @default(uuid())
+  companyName        String
+  businessType       String   @default("MANUFACTURER") // MANUFACTURER | VENDOR | SUPPLIER | DISTRIBUTOR
+  industry           String   @default("Engineering & Manufacturing")
+  district           String   @default("Nashik") // Pune | Mumbai/Thane/Raigad | Chhatrapati Sambhajinagar | Nagpur | Kolhapur | Nashik | Amravati | Solapur | Satara | Sangli | Jalgaon | Dhule | Ratnagiri | Latur
+  midcArea           String   @default("Ambad MIDC")
+  plotAddress        String
+  city               String   @default("Nashik")
+  state              String   @default("Maharashtra")
+  pincode            String   @default("422010")
+  phone              String?
+  email              String?
+  website            String?
+  placeId            String?  // Google Place ID when matched
+  source             String   @default("MIDC Industrial Directory") // MIDC Directory | MPCB Records | Govt Industrial Registry | Google Places (New)
+  verificationStatus String   @default("VERIFIED_MIDC") // VERIFIED_MIDC | GOVT_RECORD | GOOGLE_VERIFIED | UNVERIFIED
+  latitude           Float?
+  longitude          Float?
+  established        Int?
+  products           String?  // Comma-separated list of key products/services
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([district])
+  @@index([city])
+  @@index([midcArea])
+  @@index([industry])
+  @@index([businessType])
+}
+
+// India-wide industrial geography (does not replace MidcBusiness)
+model IndustrialArea {
+  id          String   @id @default(uuid())
+  name        String
+  areaType    String   @default("Industrial Area") // Industrial Estate | Park | SEZ | Cluster | Zone | MIDC | GIDC | ...
+  authority   String   @default("")
+  city        String
+  district    String   @default("")
+  state       String
+  country     String   @default("India")
+  pincode     String   @default("")
+  latitude    Float?
+  longitude   Float?
+  source      String   @default("")
+  sourceUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  companies   IndustrialCompany[]
+
+  @@unique([name, city, state])
+  @@index([state])
+  @@index([city])
+  @@index([district])
+  @@index([authority])
+}
+
+model IndustrialCompany {
+  id                  String          @id @default(uuid())
+  companyName         String
+  businessType        String          @default("MANUFACTURER")
+  industry            String          @default("Engineering & Manufacturing")
+  category            String          @default("")
+  products            String?
+  state               String
+  city                String
+  district            String          @default("")
+  industrialAreaId    String?
+  industrialArea      IndustrialArea? @relation(fields: [industrialAreaId], references: [id], onDelete: SetNull)
+  industrialAreaName  String          @default("")
+  industrialAuthority String          @default("")
+  address             String          @default("")
+  pincode             String          @default("")
+  latitude            Float?
+  longitude           Float?
+  website             String?
+  phone               String?
+  email               String?
+  source              String          @default("")
+  sourceUrl           String?
+  verificationStatus  String          @default("DIRECTORY")
+  placeId             String?
+  established         Int?
+  country             String          @default("India")
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@unique([companyName, industrialAreaName, state])
+  @@index([state])
+  @@index([city])
+  @@index([district])
+  @@index([industry])
+  @@index([businessType])
+  @@index([industrialAreaName])
+  @@index([category])
+}
+
